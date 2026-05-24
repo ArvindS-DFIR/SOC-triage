@@ -28,9 +28,43 @@ Use this exact structure:
 
 Be concise, technical, and accurate. Base your analysis strictly on the input.`;
 
+// Helper: check if string is an IP address
+function isIP(str) {
+  return /^(\d{1,3}\.){3}\d{1,3}$/.test(str.trim());
+}
+
+// Enrich a single IP via AbuseIPDB
+async function enrichIP(ip) {
+  try {
+    const res = await fetch(
+      `https://api.abuseipdb.com/api/v2/check?ipAddress=${ip}&maxAgeInDays=90&verbose`,
+      {
+        headers: {
+          "Key": process.env.ABUSEIPDB_API_KEY,
+          "Accept": "application/json"
+        }
+      }
+    );
+    const data = await res.json();
+    const d = data.data;
+    return {
+      ip,
+      abuseScore: d.abuseConfidenceScore,
+      country: d.countryCode,
+      isp: d.isp,
+      totalReports: d.totalReports,
+      lastReported: d.lastReportedAt,
+      usageType: d.usageType,
+      isMalicious: d.abuseConfidenceScore > 20
+    };
+  } catch {
+    return { ip, error: "Lookup failed" };
+  }
+}
+
+// Triage endpoint
 app.post("/api/triage", async (req, res) => {
   const { alert } = req.body;
-
   if (!alert || !alert.trim()) {
     return res.status(400).json({ error: "No alert text provided" });
   }
@@ -57,7 +91,6 @@ app.post("/api/triage", async (req, res) => {
     );
 
     const data = await response.json();
-
     if (data.error) throw new Error(data.error.message);
 
     const raw = data.choices?.[0]?.message?.content || "";
@@ -65,9 +98,31 @@ app.post("/api/triage", async (req, res) => {
     if (!jsonMatch) throw new Error("No JSON in response");
 
     const result = JSON.parse(jsonMatch[0]);
+
+    // Auto-enrich any IPs found in the IOCs list
+    const ips = (result.iocs || []).filter(isIP);
+    if (ips.length > 0) {
+      const enriched = await Promise.all(ips.map(enrichIP));
+      result.ioc_enrichment = enriched;
+    }
+
     res.json(result);
   } catch (err) {
     console.error("Triage error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Standalone IP enrichment endpoint
+app.post("/api/enrich", async (req, res) => {
+  const { ip } = req.body;
+  if (!ip || !isIP(ip)) {
+    return res.status(400).json({ error: "Valid IP address required" });
+  }
+  try {
+    const result = await enrichIP(ip);
+    res.json(result);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

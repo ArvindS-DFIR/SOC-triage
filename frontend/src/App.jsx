@@ -175,6 +175,54 @@ function TriageCard({ result }) {
             </div>
           )}
         </div>
+
+        {/* IOC Enrichment */}
+        {result.ioc_enrichment?.length > 0 && (
+          <div>
+            <Label>IOC Enrichment — AbuseIPDB</Label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {result.ioc_enrichment.map((e, i) => (
+                <div key={i} style={{
+                  background: e.isMalicious ? "rgba(255,45,45,0.08)" : "rgba(0,200,150,0.06)",
+                  border: `1px solid ${e.isMalicious ? "rgba(255,45,45,0.3)" : "rgba(0,200,150,0.2)"}`,
+                  borderRadius: 6, padding: "12px 16px",
+                  display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10,
+                }}>
+                  <div>
+                    <Label small>IP</Label>
+                    <span style={{ color: "#e6f1ff", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>{e.ip}</span>
+                  </div>
+                  <div>
+                    <Label small>Abuse Score</Label>
+                    <span style={{
+                      color: e.abuseScore > 50 ? "#ff6b6b" : e.abuseScore > 20 ? "#f5c400" : "#00c896",
+                      fontWeight: 700, fontSize: 14,
+                    }}>{e.abuseScore}%</span>
+                  </div>
+                  <div>
+                    <Label small>Country</Label>
+                    <span style={{ color: "#a8b2d8", fontSize: 12 }}>{e.country || "Unknown"}</span>
+                  </div>
+                  <div>
+                    <Label small>ISP</Label>
+                    <span style={{ color: "#a8b2d8", fontSize: 12 }}>{e.isp || "Unknown"}</span>
+                  </div>
+                  <div>
+                    <Label small>Total Reports</Label>
+                    <span style={{ color: "#a8b2d8", fontSize: 12 }}>{e.totalReports ?? 0}</span>
+                  </div>
+                  <div>
+                    <Label small>Verdict</Label>
+                    <span style={{
+                      color: e.isMalicious ? "#ff6b6b" : "#00c896",
+                      fontWeight: 700, fontSize: 12,
+                    }}>{e.isMalicious ? "⚠ MALICIOUS" : "✓ CLEAN"}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
