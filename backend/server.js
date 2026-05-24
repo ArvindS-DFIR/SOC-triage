@@ -118,6 +118,58 @@ app.post("/api/triage", async (req, res) => {
   }
 });
 
+// Chat endpoint
+app.post("/api/chat", async (req, res) => {
+  const { alert, triage, messages } = req.body;
+  if (!messages || !alert) return res.status(400).json({ error: "Missing data" });
+
+  try {
+    const systemPrompt = `You are an expert SOC analyst AI assistant helping investigate a security alert.
+
+Original alert:
+${alert}
+
+Triage result:
+${JSON.stringify(triage, null, 2)}
+
+Help the analyst investigate this incident. You can:
+- Answer questions about the alert
+- Write ticket comments
+- Draft escalation emails
+- Suggest forensic steps and log collection
+- Explain MITRE techniques
+- Identify threat actor patterns
+- Give containment recommendations
+
+Be concise, technical, and practical. Format ticket comments and emails clearly.`;
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.3,
+        max_tokens: 1000,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages.map(m => ({ role: m.role, content: m.content }))
+        ]
+      })
+    });
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    const reply = data.choices?.[0]?.message?.content || "No response";
+    res.json({ reply });
+  } catch (err) {
+    console.error("Chat error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Standalone IP enrichment endpoint
 app.post("/api/enrich", async (req, res) => {
   const { ip } = req.body;
