@@ -97,7 +97,12 @@ app.post("/api/triage", async (req, res) => {
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON in response");
 
-    const result = JSON.parse(jsonMatch[0]);
+    // Clean bad escape characters before parsing
+    const cleaned = jsonMatch[0]
+      .replace(/[\x00-\x1F\x7F]/g, " ")
+      .replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+
+    const result = JSON.parse(cleaned);
 
     // Auto-enrich any IPs found in the IOCs list
     const ips = (result.iocs || []).filter(isIP);
