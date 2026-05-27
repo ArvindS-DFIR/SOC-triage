@@ -744,6 +744,187 @@ function ThreatIntel({ baseUrl }) {
   );
 }
 
+function AboutSection() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <button onClick={() => setOpen(!open)} style={{
+        background: "rgba(13,17,30,0.6)", border: "1px solid #1e2847",
+        borderRadius: 8, padding: "10px 16px", cursor: "pointer",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        width: "100%", color: "#7ab3ff", fontSize: 12,
+        fontFamily: "'Space Mono', monospace", letterSpacing: 1, fontWeight: 700,
+      }}>
+        <span>ⓘ ABOUT THIS TOOL</span>
+        <span style={{ fontSize: 14 }}>{open ? "−" : "+"}</span>
+      </button>
+      {open && (
+        <div style={{
+          background: "rgba(13,17,30,0.4)", border: "1px solid #1e2847",
+          borderTop: "none", borderRadius: "0 0 8px 8px",
+          padding: "16px 20px", animation: "fadeUp 0.2s ease",
+          color: "#a8b2d8", fontSize: 13, lineHeight: 1.7,
+        }}>
+          <p style={{ margin: "0 0 14px" }}>
+            An AI-powered SOC assistant that turns raw security alerts into structured, actionable triage in seconds — without the complexity of enterprise SOAR tools.
+          </p>
+
+          <div style={{
+            color: "#4488ff", fontFamily: "'Space Mono', monospace",
+            fontSize: 10, letterSpacing: 1.5, marginBottom: 8, fontWeight: 700,
+          }}>FEATURES</div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, marginBottom: 14 }}>
+            {[
+              { icon: "🎯", title: "Alert Triage", desc: "Severity scoring, MITRE ATT&CK mapping, IOC extraction, FP assessment, and escalation logic — for any EDR, SIEM, cloud, or log source." },
+              { icon: "💬", title: "Investigation Chat", desc: "Ask follow-up questions, draft ticket comments, write escalation emails, get forensic step recommendations — all with full alert context." },
+              { icon: "🔍", title: "Threat Intel Lookup", desc: "Auto-detect IP / domain / URL / file hash. Queries VirusTotal + AbuseIPDB and returns an AI-summarized verdict." },
+              { icon: "🛡️", title: "IOC Enrichment", desc: "Every IP in a triage is automatically checked against AbuseIPDB for reputation, country, ISP, and report history." },
+              { icon: "⚠️", title: "Hallucination Check", desc: "Every AI response is validated against the official MITRE ATT&CK list and NVD CVE database to flag invented techniques or fake CVEs." },
+              { icon: "📋", title: "Ticket-Ready Output", desc: "One-click copy of triage as a formatted ticket comment ready to paste into Jira, ServiceNow, or Freshdesk." },
+              { icon: "📚", title: "Local History", desc: "Last 50 triages saved in your browser — never sent to the server. Picks up where you left off when you return." },
+              { icon: "🔒", title: "Privacy-First", desc: "No login, no database, no tracking. Alert data is only sent to the LLM for processing, never stored." },
+            ].map((f, i) => (
+              <div key={i} style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 6, padding: "10px 12px",
+              }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 14 }}>{f.icon}</span>
+                  <span style={{ color: "#e6f1ff", fontWeight: 600, fontSize: 12 }}>{f.title}</span>
+                </div>
+                <div style={{ color: "#8892b0", fontSize: 11, lineHeight: 1.6 }}>{f.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{
+            color: "#4488ff", fontFamily: "'Space Mono', monospace",
+            fontSize: 10, letterSpacing: 1.5, marginBottom: 8, fontWeight: 700,
+          }}>WHO IT'S FOR</div>
+          <ul style={{ margin: "0 0 14px", padding: "0 0 0 18px", color: "#a8b2d8", fontSize: 12, lineHeight: 1.7 }}>
+            <li>Small companies with no dedicated SOC team</li>
+            <li>IT admins handling security as part of their role</li>
+            <li>MSSPs triaging alerts across multiple clients</li>
+            <li>Junior analysts learning to investigate alerts</li>
+          </ul>
+
+          <div style={{
+            color: "#4488ff", fontFamily: "'Space Mono', monospace",
+            fontSize: 10, letterSpacing: 1.5, marginBottom: 8, fontWeight: 700,
+          }}>STACK</div>
+          <div style={{ color: "#8892b0", fontSize: 11, fontFamily: "'Space Mono', monospace", lineHeight: 1.7 }}>
+            React · Node.js · Groq (Llama 3.3 70B) · VirusTotal · AbuseIPDB · NVD · MITRE ATT&CK
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Footer() {
+  return (
+    <div style={{
+      marginTop: 48, paddingTop: 20, borderTop: "1px solid #1a2040",
+      display: "flex", flexDirection: "column", gap: 12,
+    }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        flexWrap: "wrap", gap: 12,
+      }}>
+        <div style={{ color: "#8892b0", fontSize: 12 }}>
+          Built by <span style={{ color: "#e6f1ff", fontWeight: 600 }}>Arvind S</span>
+          <span style={{ color: "#4a5280", margin: "0 8px" }}>·</span>
+          <span style={{ color: "#a8b2d8" }}>Senior Security Engineer</span>
+          <span style={{ color: "#4a5280", margin: "0 8px" }}>·</span>
+          <span style={{ color: "#a8b2d8" }}>GIAC GEIR</span>
+        </div>
+        <div style={{ display: "flex", gap: 14 }}>
+          <a href="https://www.linkedin.com/in/aravind-s-733494205" target="_blank" rel="noreferrer" style={{
+            color: "#7ab3ff", fontSize: 11, fontFamily: "'Space Mono', monospace",
+            textDecoration: "none", borderBottom: "1px solid transparent",
+          }}>LinkedIn</a>
+          <a href="https://github.com/ArvindS-DFIR" target="_blank" rel="noreferrer" style={{
+            color: "#7ab3ff", fontSize: 11, fontFamily: "'Space Mono', monospace",
+            textDecoration: "none",
+          }}>GitHub</a>
+          <a href="mailto:aravinds4992@gmail.com" style={{
+            color: "#7ab3ff", fontSize: 11, fontFamily: "'Space Mono', monospace",
+            textDecoration: "none",
+          }}>Email</a>
+        </div>
+      </div>
+
+      <div style={{
+        background: "rgba(245,196,0,0.05)",
+        border: "1px solid rgba(245,196,0,0.15)",
+        borderRadius: 6, padding: "8px 12px",
+        color: "#d4b540", fontSize: 11, lineHeight: 1.6,
+      }}>
+        ⚠ Demo tool — do not paste highly sensitive production data. Alerts are processed by Groq AI and not stored on our servers.
+      </div>
+
+      <div style={{
+        color: "#4a5280", fontSize: 10, fontFamily: "'Space Mono', monospace",
+        letterSpacing: 1, textAlign: "center",
+      }}>
+        © 2026 SOC Triage AI · Open source · v0.2
+      </div>
+    </div>
+  );
+}
+
+function Footer() {
+  return (
+    <div style={{
+      marginTop: 60, paddingTop: 24, borderTop: "1px solid #1a2040",
+      paddingBottom: 30,
+    }}>
+      <div style={{
+        display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center",
+        justifyContent: "space-between", marginBottom: 16,
+      }}>
+        <div>
+          <div style={{ color: "#e6f1ff", fontSize: 13, fontWeight: 600 }}>
+            Built by Arvind S
+          </div>
+          <div style={{ color: "#8892b0", fontSize: 11, marginTop: 2 }}>
+            Senior Security Engineer · GIAC GEIR
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+          <a href="https://www.linkedin.com/in/aravind-s-733494205" target="_blank" rel="noopener noreferrer"
+            style={{ color: "#7ab3ff", textDecoration: "none", fontSize: 12, fontFamily: "'Space Mono', monospace" }}
+          >LinkedIn ↗</a>
+          <a href="https://github.com/ArvindS-DFIR" target="_blank" rel="noopener noreferrer"
+            style={{ color: "#7ab3ff", textDecoration: "none", fontSize: 12, fontFamily: "'Space Mono', monospace" }}
+          >GitHub ↗</a>
+          <a href="mailto:aravinds4992@gmail.com"
+            style={{ color: "#7ab3ff", textDecoration: "none", fontSize: 12, fontFamily: "'Space Mono', monospace" }}
+          >Email ↗</a>
+        </div>
+      </div>
+
+      <div style={{
+        background: "rgba(245,196,0,0.06)",
+        border: "1px solid rgba(245,196,0,0.2)",
+        borderRadius: 6, padding: "10px 14px", marginBottom: 14,
+        color: "#d4b540", fontSize: 11, lineHeight: 1.6,
+      }}>
+        ⚠ Demo tool — do not paste highly sensitive production data. Alerts are processed by Groq AI and not stored on our servers.
+      </div>
+
+      <div style={{
+        color: "#4a5280", fontSize: 10, fontFamily: "'Space Mono', monospace",
+        letterSpacing: 1, textAlign: "center",
+      }}>
+        © 2026 SOC Triage AI · Open source · v0.2
+      </div>
+    </div>
+  );
+}
+
 export default function SOCTriage() {
   const [tab, setTab] = useState("triage");
   const [input, setInput] = useState("");
@@ -841,9 +1022,13 @@ export default function SOCTriage() {
         </div>
 
         {tab === "intel" ? (
-          <ThreatIntel baseUrl={baseUrl} />
+          <>
+            <AboutSection />
+            <ThreatIntel baseUrl={baseUrl} />
+          </>
         ) : (
         <>
+        <AboutSection />
         {/* What to paste guide — only show before result */}
         {!result && (
           <div style={{ marginBottom: 20, background: "rgba(68,136,255,0.05)", border: "1px solid rgba(68,136,255,0.15)", borderRadius: 10, padding: "14px 18px" }}>
@@ -976,6 +1161,7 @@ export default function SOCTriage() {
         )}
         </>
         )}
+        <Footer />
       </div>
     </div>
   );
