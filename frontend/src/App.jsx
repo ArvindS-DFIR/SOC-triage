@@ -134,6 +134,69 @@ function CopyButton({ text, label = "Copy as Ticket Comment" }) {
   );
 }
 
+// Valid MITRE technique ID pattern: T followed by 4 digits, optionally .NNN
+const MITRE_PATTERN = /^T\d{4}(\.\d{3})?$/;
+
+function validateTriage(r) {
+  const issues = [];
+
+  // Check MITRE techniques have valid IDs
+  if (r.mitre_techniques?.length) {
+    r.mitre_techniques.forEach(t => {
+      const idMatch = t.match(/^(T\d{4}(?:\.\d{3})?)/);
+      if (!idMatch) {
+        issues.push({
+          type: "invalid_mitre",
+          severity: "warning",
+          message: `MITRE technique "${t}" doesn't match valid format (TNNNN or TNNNN.NNN)`
+        });
+      }
+    });
+  }
+
+  // Check contradictions with IOC enrichment
+  if (r.ioc_enrichment?.length) {
+    r.ioc_enrichment.forEach(e => {
+      // If AI says CRITICAL but all IPs are clean, flag it
+      if ((r.severity === "CRITICAL" || r.severity === "HIGH") && !e.isMalicious && e.abuseScore < 10) {
+        issues.push({
+          type: "contradiction",
+          severity: "warning",
+          message: `IP ${e.ip} marked as IOC but AbuseIPDB shows clean (score ${e.abuseScore}%)`
+        });
+      }
+      // If AI says LOW/INFO but IP is highly malicious, flag it
+      if ((r.severity === "LOW" || r.severity === "INFO") && e.isMalicious && e.abuseScore > 70) {
+        issues.push({
+          type: "contradiction",
+          severity: "critical",
+          message: `IP ${e.ip} is highly malicious (${e.abuseScore}%) but alert marked ${r.severity}`
+        });
+      }
+    });
+  }
+
+  // Check confidence vs severity sanity
+  if (r.severity === "CRITICAL" && r.confidence < 60) {
+    issues.push({
+      type: "low_confidence",
+      severity: "warning",
+      message: `CRITICAL severity but confidence only ${r.confidence}% — consider manual review`
+    });
+  }
+
+  // Check escalation logic
+  if ((r.severity === "CRITICAL" || r.severity === "HIGH") && !r.escalate) {
+    issues.push({
+      type: "logic_error",
+      severity: "warning",
+      message: `${r.severity} severity but no escalation flagged — likely AI inconsistency`
+    });
+  }
+
+  return issues;
+}
+
 function TriageCard({ result }) {
   const c = SEVERITY_COLORS[result.severity] || SEVERITY_COLORS.INFO;
   return (
@@ -168,6 +231,47 @@ function TriageCard({ result }) {
       </div>
 
       <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Hallucination/validation check */}
+        {(() => {
+          const issues = validateTriage(result);
+          if (issues.length === 0) {
+            return (
+              <div style={{
+                background: "rgba(0,200,150,0.06)",
+                border: "1px solid rgba(0,200,150,0.2)",
+                borderRadius: 6, padding: "8px 12px",
+                display: "flex", alignItems: "center", gap: 8,
+              }}>
+                <span style={{ color: "#00c896", fontSize: 12 }}>✓</span>
+                <span style={{ color: "#00c896", fontSize: 11, fontFamily: "'Space Mono', monospace", letterSpacing: 1 }}>
+                  VALIDATION PASSED — no inconsistencies detected
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div style={{
+              background: "rgba(245,196,0,0.08)",
+              border: "1px solid rgba(245,196,0,0.25)",
+              borderRadius: 6, padding: "10px 14px",
+            }}>
+              <div style={{
+                color: "#f5c400", fontSize: 11, fontFamily: "'Space Mono', monospace",
+                letterSpacing: 1, marginBottom: 8, fontWeight: 700,
+              }}>
+                ⚠ {issues.length} POTENTIAL AI ISSUE{issues.length > 1 ? "S" : ""} DETECTED
+              </div>
+              <ul style={{ margin: 0, padding: "0 0 0 16px", color: "#d4b540", fontSize: 12, lineHeight: 1.6 }}>
+                {issues.map((iss, i) => (
+                  <li key={i} style={{ color: iss.severity === "critical" ? "#ff9999" : "#d4b540" }}>
+                    {iss.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
+
         <div>
           <Label>Summary</Label>
           <p style={{ color: "#a8b2d8", lineHeight: 1.7, margin: 0, fontSize: 13 }}>{result.summary}</p>
@@ -608,10 +712,24 @@ export default function SOCTriage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem("soc_triage_history");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [alertText, setAlertText] = useState("");
   const textareaRef = useRef(null);
   const baseUrl = import.meta.env.VITE_API_URL || "";
+
+  // Save history to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("soc_triage_history", JSON.stringify(history));
+    } catch {}
+  }, [history]);
 
   const analyze = async (alertInput) => {
     const text = alertInput || input.trim();
@@ -630,7 +748,7 @@ export default function SOCTriage() {
       if (data.error) throw new Error(data.error);
       setResult(data);
       setAlertText(text);
-      setHistory(h => [{ input: text, result: data, ts: new Date() }, ...h.slice(0, 9)]);
+      setHistory(h => [{ input: text, result: data, ts: new Date().toISOString() }, ...h.slice(0, 49)]);
     } catch (e) {
       setError(`Analysis failed: ${e.message}`);
     } finally {
@@ -781,20 +899,40 @@ export default function SOCTriage() {
         )}
 
         {/* History */}
-        {history.length > 1 && (
+        {history.length > 0 && (
           <div style={{ marginTop: 32 }}>
-            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#2d3555", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Recent Triages</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#4488ff", letterSpacing: 2, textTransform: "uppercase" }}>
+                History ({history.length}) — saved in your browser
+              </div>
+              <button onClick={() => { if (confirm("Clear all triage history?")) setHistory([]); }} style={{
+                background: "none", border: "1px solid #1e2847", color: "#4a5280",
+                padding: "3px 10px", borderRadius: 4, cursor: "pointer",
+                fontFamily: "'Space Mono', monospace", fontSize: 10,
+              }}>clear all</button>
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {history.slice(1).map((h, i) => (
-                <button key={i} onClick={() => { setInput(h.input); setResult(h.result); setAlertText(h.input); }}
-                  style={{ background: "rgba(13,17,30,0.6)", border: "1px solid #1e2847", borderRadius: 6, padding: "8px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", textAlign: "left", color: "#8892b0", fontSize: 12 }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = "#2d3555"}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = "#1e2847"}
-                >
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{h.input.slice(0, 80)}...</span>
-                  <SeverityBadge severity={h.result.severity} />
-                </button>
-              ))}
+              {history.map((h, i) => {
+                const ts = h.ts ? new Date(h.ts) : null;
+                return (
+                  <button key={i} onClick={() => { setInput(h.input); setResult(h.result); setAlertText(h.input); }}
+                    style={{ background: "rgba(13,17,30,0.6)", border: "1px solid #1e2847", borderRadius: 6, padding: "8px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, textAlign: "left", color: "#8892b0", fontSize: 12 }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = "#2d3555"}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = "#1e2847"}
+                  >
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                      <span style={{ color: "#ccd6f6" }}>{h.result.alert_type || "Alert"}</span>
+                      <span style={{ color: "#4a5280", marginLeft: 8 }}>{h.input.slice(0, 70)}...</span>
+                    </span>
+                    {ts && (
+                      <span style={{ color: "#4a5280", fontSize: 10, fontFamily: "'Space Mono', monospace", whiteSpace: "nowrap" }}>
+                        {ts.toLocaleDateString()} {ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
+                    <SeverityBadge severity={h.result.severity} />
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
