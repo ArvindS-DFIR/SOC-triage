@@ -68,6 +68,72 @@ function Label({ children, small }) {
   );
 }
 
+function formatTicketComment(r) {
+  const lines = [];
+  lines.push(`[${r.severity}] ${r.alert_type}`);
+  lines.push(`Confidence: ${r.confidence}%`);
+  lines.push("");
+  lines.push(`Summary: ${r.summary}`);
+  lines.push("");
+
+  if (r.mitre_tactics?.length || r.mitre_techniques?.length) {
+    const m = [...(r.mitre_tactics || []), ...(r.mitre_techniques || [])].join(", ");
+    lines.push(`MITRE: ${m}`);
+    lines.push("");
+  }
+
+  if (r.iocs?.length) {
+    lines.push("IOCs:");
+    r.iocs.forEach(ioc => {
+      const enrich = r.ioc_enrichment?.find(e => e.ip === ioc);
+      if (enrich) {
+        lines.push(`- ${ioc} (${enrich.isMalicious ? "Malicious" : "Clean"} - AbuseIPDB ${enrich.abuseScore}%, ${enrich.country})`);
+      } else {
+        lines.push(`- ${ioc}`);
+      }
+    });
+    lines.push("");
+  }
+
+  if (r.recommended_actions?.length) {
+    lines.push("Recommended Actions:");
+    r.recommended_actions.forEach((a, i) => lines.push(`${i + 1}. ${a}`));
+    lines.push("");
+  }
+
+  lines.push(`False Positive: ${r.false_positive_likelihood} - ${r.false_positive_reason}`);
+  if (r.escalate) {
+    lines.push("");
+    lines.push(`ESCALATION: ${r.escalation_reason}`);
+  }
+  lines.push("");
+  lines.push("Triaged by: SOC Triage AI");
+  return lines.join("\n");
+}
+
+function CopyButton({ text, label = "Copy as Ticket Comment" }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
+  return (
+    <button onClick={copy} style={{
+      background: copied ? "rgba(0,200,150,0.15)" : "rgba(68,136,255,0.1)",
+      border: `1px solid ${copied ? "#00c896" : "#4488ff66"}`,
+      color: copied ? "#00c896" : "#7ab3ff",
+      padding: "5px 12px", borderRadius: 4, cursor: "pointer",
+      fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700,
+      letterSpacing: 1, transition: "all 0.15s",
+    }}>
+      {copied ? "✓ COPIED" : `📋 ${label}`}
+    </button>
+  );
+}
+
 function TriageCard({ result }) {
   const c = SEVERITY_COLORS[result.severity] || SEVERITY_COLORS.INFO;
   return (
@@ -84,7 +150,7 @@ function TriageCard({ result }) {
           <SeverityBadge severity={result.severity} />
           <span style={{ color: "#ccd6f6", fontWeight: 600, fontSize: 14 }}>{result.alert_type}</span>
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span style={{ color: "#8892b0", fontSize: 11, fontFamily: "'Space Mono', monospace" }}>
             confidence <span style={{ color: "#ccd6f6" }}>{result.confidence}%</span>
           </span>
@@ -97,6 +163,7 @@ function TriageCard({ result }) {
           }}>
             {result.escalate ? "↑ ESCALATE" : "✓ NO ESCALATION"}
           </span>
+          <CopyButton text={formatTicketComment(result)} />
         </div>
       </div>
 
