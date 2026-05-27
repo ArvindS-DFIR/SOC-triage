@@ -186,6 +186,108 @@ app.post("/api/enrich", async (req, res) => {
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
+// MITRE ATT&CK cache — loaded once at startup
+let MITRE_TECHNIQUES = new Set();
+let MITRE_LOADED = false;
+
+async function loadMITRE() {
+  try {
+    const res = await fetch("https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json");
+    const data = await res.json();
+    data.objects?.forEach(obj => {
+      if (obj.type === "attack-pattern" && obj.external_references) {
+        const ref = obj.external_references.find(r => r.source_name === "mitre-attack");
+        if (ref?.external_id) MITRE_TECHNIQUES.add(ref.external_id);
+      }
+    });
+    MITRE_LOADED = true;
+    console.log(`MITRE loaded: ${MITRE_TECHNIQUES.size} techniques`);
+  } catch (e) {
+    console.error("MITRE load failed:", e.message);
+  }
+}
+loadMITRE();
+
+// Validate a CVE against NVD (free, no auth)
+async function validateCVE(cveId) {
+  try {
+    const res = await fetch(`https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=${cveId}`);
+    if (!res.ok) return { valid: false, reason: `NVD returned ${res.status}` };
+    const data = await res.json();
+    const vuln = data.vulnerabilities?.[0]?.cve;
+    if (!vuln) return { valid: false, reason: "Not found in NVD" };
+    return {
+      valid: true,
+      description: vuln.descriptions?.[0]?.value?.slice(0, 200),
+      severity: vuln.metrics?.cvssMetricV31?.[0]?.cvssData?.baseSeverity ||
+                vuln.metrics?.cvssMetricV30?.[0]?.cvssData?.baseSeverity ||
+                vuln.metrics?.cvssMetricV2?.[0]?.baseSeverity,
+      score: vuln.metrics?.cvssMetricV31?.[0]?.cvssData?.baseScore ||
+             vuln.metrics?.cvssMetricV30?.[0]?.cvssData?.baseScore ||
+             vuln.metrics?.cvssMetricV2?.[0]?.cvssData?.baseScore,
+    };
+  } catch (e) {
+    return { valid: false, reason: e.message };
+  }
+}
+
+// Validation endpoint — checks MITRE techniques and CVEs in any text
+app.post("/api/validate", async (req, res) => {
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ error: "No text provided" });
+
+  const issues = [];
+
+  // Extract MITRE IDs (Txxxx or Txxxx.xxx)
+  const mitreMatches = [...text.matchAll(/\bT\d{4}(?:\.\d{3})?\b/g)].map(m => m[0]);
+  const uniqueMitre = [...new Set(mitreMatches)];
+
+  for (const id of uniqueMitre) {
+    if (MITRE_LOADED && !MITRE_TECHNIQUES.has(id)) {
+      issues.push({
+        type: "invalid_mitre",
+        severity: "warning",
+        value: id,
+        message: `${id} is not a valid MITRE ATT&CK technique`
+      });
+    }
+  }
+
+  // Extract CVEs
+  const cveMatches = [...text.matchAll(/CVE-\d{4}-\d{4,7}/gi)].map(m => m[0].toUpperCase());
+  const uniqueCVEs = [...new Set(cveMatches)];
+  const currentYear = new Date().getFullYear();
+
+  for (const cve of uniqueCVEs) {
+    const year = parseInt(cve.split("-")[1]);
+    if (year < 1999 || year > currentYear) {
+      issues.push({
+        type: "invalid_cve_year",
+        severity: "warning",
+        value: cve,
+        message: `${cve} has invalid year (${year})`
+      });
+      continue;
+    }
+    const result = await validateCVE(cve);
+    if (!result.valid) {
+      issues.push({
+        type: "invalid_cve",
+        severity: "critical",
+        value: cve,
+        message: `${cve} not found in NVD — likely hallucinated`
+      });
+    }
+  }
+
+  res.json({
+    mitre_checked: uniqueMitre,
+    cves_checked: uniqueCVEs,
+    issues,
+    valid: issues.length === 0,
+  });
+});
+
 // Threat Intel — auto-detect input and query multiple sources
 function detectType(input) {
   const s = input.trim();

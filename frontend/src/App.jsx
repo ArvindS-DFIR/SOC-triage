@@ -397,7 +397,19 @@ function ChatPanel({ alertText, triageResult, baseUrl }) {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setMessages(m => [...m, { role: "assistant", content: data.reply }]);
+
+      // Validate the response for hallucinations
+      let validation = null;
+      try {
+        const vRes = await fetch(`${baseUrl}/api/validate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: data.reply }),
+        });
+        validation = await vRes.json();
+      } catch {}
+
+      setMessages(m => [...m, { role: "assistant", content: data.reply, validation }]);
     } catch (e) {
       setMessages(m => [...m, { role: "assistant", content: `Error: ${e.message}` }]);
     } finally {
@@ -444,6 +456,7 @@ function ChatPanel({ alertText, triageResult, baseUrl }) {
           <div key={i} style={{
             display: "flex", flexDirection: "column",
             alignItems: m.role === "user" ? "flex-end" : "flex-start",
+            gap: 4,
           }}>
             <div style={{
               maxWidth: "90%",
@@ -454,6 +467,31 @@ function ChatPanel({ alertText, triageResult, baseUrl }) {
               fontSize: 12, lineHeight: 1.7,
               whiteSpace: "pre-wrap",
             }}>{m.content}</div>
+            {m.validation && m.validation.issues?.length > 0 && (
+              <div style={{
+                maxWidth: "90%",
+                background: "rgba(245,196,0,0.1)",
+                border: "1px solid rgba(245,196,0,0.3)",
+                borderRadius: 6, padding: "6px 10px",
+              }}>
+                <div style={{ color: "#f5c400", fontSize: 10, fontFamily: "'Space Mono', monospace", fontWeight: 700, marginBottom: 4, letterSpacing: 1 }}>
+                  ⚠ HALLUCINATION CHECK
+                </div>
+                {m.validation.issues.map((iss, j) => (
+                  <div key={j} style={{ color: iss.severity === "critical" ? "#ff9999" : "#d4b540", fontSize: 11, lineHeight: 1.5 }}>
+                    • {iss.message}
+                  </div>
+                ))}
+              </div>
+            )}
+            {m.validation && m.validation.valid && (m.validation.mitre_checked?.length > 0 || m.validation.cves_checked?.length > 0) && (
+              <div style={{
+                fontSize: 10, fontFamily: "'Space Mono', monospace",
+                color: "#00c896", opacity: 0.7,
+              }}>
+                ✓ {m.validation.mitre_checked.length} MITRE / {m.validation.cves_checked.length} CVE verified
+              </div>
+            )}
           </div>
         ))}
         {loading && (
