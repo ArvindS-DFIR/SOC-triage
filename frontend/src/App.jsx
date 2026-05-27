@@ -331,7 +331,212 @@ function ChatPanel({ alertText, triageResult, baseUrl }) {
   );
 }
 
+function ThreatIntel({ baseUrl }) {
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const lookup = async () => {
+    const text = input.trim();
+    if (!text) return;
+    setLoading(true);
+    setResult(null);
+    setError(null);
+
+    try {
+      const res = await fetch(`${baseUrl}/api/threat-intel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ indicator: text }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setResult(data);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verdictColor = (v) => ({
+    Malicious: "#ff2d2d",
+    Suspicious: "#ff6b00",
+    Clean: "#00c896",
+    Unknown: "#8892b0",
+  }[v] || "#8892b0");
+
+  return (
+    <div>
+      {/* Input */}
+      <div style={{
+        background: "rgba(13,17,30,0.8)", border: "1px solid #1e2847",
+        borderRadius: 10, overflow: "hidden", marginBottom: 20,
+      }}>
+        <div style={{
+          padding: "8px 14px", background: "#0a0e1c",
+          borderBottom: "1px solid #1e2847",
+        }}>
+          <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#4a5280", letterSpacing: 1 }}>
+            INDICATOR LOOKUP
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 0 }}>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && lookup()}
+            placeholder="Enter IP, domain, URL, MD5, SHA1, or SHA256..."
+            style={{
+              flex: 1, background: "transparent", border: "none",
+              padding: "16px", color: "#ccd6f6", fontSize: 14,
+              fontFamily: "'Space Mono', monospace", outline: "none",
+            }}
+          />
+          <button
+            onClick={lookup}
+            disabled={loading || !input.trim()}
+            style={{
+              background: input.trim() && !loading ? "#4488ff" : "#1a2040",
+              color: input.trim() && !loading ? "#fff" : "#2d3555",
+              border: "none", padding: "0 24px",
+              cursor: input.trim() && !loading ? "pointer" : "not-allowed",
+              fontFamily: "'Space Mono', monospace", fontSize: 12,
+              fontWeight: 700, letterSpacing: 1,
+            }}
+          >{loading ? "LOOKING UP..." : "LOOKUP →"}</button>
+        </div>
+      </div>
+
+      {/* Examples */}
+      <div style={{ marginBottom: 24 }}>
+        <span style={{ color: "#2d3555", fontSize: 11, fontFamily: "'Space Mono', monospace", marginRight: 8 }}>try:</span>
+        {["8.8.8.8", "google.com", "185.234.219.88"].map((ex, i) => (
+          <button key={i} onClick={() => setInput(ex)} style={{
+            background: "none", border: "1px solid #1e2847", color: "#4a5280",
+            padding: "3px 10px", borderRadius: 4, cursor: "pointer",
+            fontFamily: "'Space Mono', monospace", fontSize: 10, marginRight: 6,
+          }}>{ex}</button>
+        ))}
+      </div>
+
+      {loading && (
+        <div style={{ background: "rgba(13,17,30,0.8)", border: "1px solid #1e2847", borderRadius: 10, padding: "14px 20px", marginBottom: 20 }}>
+          <span style={{ color: "#4a5280", fontSize: 12, fontFamily: "'Space Mono', monospace" }}>querying threat intel sources...</span>
+          <TypingIndicator />
+        </div>
+      )}
+
+      {error && (
+        <div style={{ background: "#ff2d2d11", border: "1px solid #ff2d2d44", borderRadius: 8, padding: "10px 14px", marginBottom: 20, color: "#ff6b6b", fontSize: 13 }}>
+          {error}
+        </div>
+      )}
+
+      {result && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeUp 0.4s ease" }}>
+          {/* Verdict card */}
+          {result.ai_summary && (
+            <div style={{
+              background: "rgba(10,14,24,0.9)",
+              border: `1px solid ${verdictColor(result.ai_summary.verdict)}44`,
+              borderRadius: 10, overflow: "hidden",
+            }}>
+              <div style={{
+                background: `linear-gradient(135deg, ${verdictColor(result.ai_summary.verdict)}22, transparent)`,
+                borderBottom: `1px solid ${verdictColor(result.ai_summary.verdict)}33`,
+                padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10,
+              }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <span style={{
+                    background: verdictColor(result.ai_summary.verdict),
+                    color: result.ai_summary.verdict === "Clean" ? "#000" : "#fff",
+                    padding: "3px 14px", borderRadius: 4,
+                    fontFamily: "'Space Mono', monospace", fontSize: 11,
+                    fontWeight: 700, letterSpacing: 2, textTransform: "uppercase",
+                    boxShadow: `0 0 16px ${verdictColor(result.ai_summary.verdict)}88`,
+                  }}>{result.ai_summary.verdict}</span>
+                  <span style={{ color: "#ccd6f6", fontFamily: "'Space Mono', monospace", fontSize: 13 }}>{result.indicator}</span>
+                  <span style={{ color: "#4a5280", fontSize: 11, fontFamily: "'Space Mono', monospace" }}>({result.type})</span>
+                </div>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <span style={{ color: "#8892b0", fontSize: 11, fontFamily: "'Space Mono', monospace" }}>
+                    confidence <span style={{ color: "#ccd6f6" }}>{result.ai_summary.confidence}%</span>
+                  </span>
+                  <span style={{ color: "#8892b0", fontSize: 11, fontFamily: "'Space Mono', monospace" }}>
+                    risk <span style={{ color: result.ai_summary.risk_score > 60 ? "#ff6b6b" : result.ai_summary.risk_score > 30 ? "#f5c400" : "#00c896" }}>{result.ai_summary.risk_score}/100</span>
+                  </span>
+                </div>
+              </div>
+              <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <Label>Summary</Label>
+                  <p style={{ color: "#a8b2d8", margin: 0, fontSize: 13, lineHeight: 1.7 }}>{result.ai_summary.summary}</p>
+                </div>
+                {result.ai_summary.key_findings?.length > 0 && (
+                  <div>
+                    <Label>Key Findings</Label>
+                    <ul style={{ margin: 0, padding: "0 0 0 16px", color: "#a8b2d8", fontSize: 13, lineHeight: 1.7 }}>
+                      {result.ai_summary.key_findings.map((f, i) => <li key={i}>{f}</li>)}
+                    </ul>
+                  </div>
+                )}
+                <div>
+                  <Label>Recommended Action</Label>
+                  <p style={{ color: "#a8b2d8", margin: 0, fontSize: 13 }}>{result.ai_summary.recommended_action}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VirusTotal raw */}
+          {result.sources?.virustotal && !result.sources.virustotal.error && (
+            <div style={{ background: "rgba(13,17,30,0.6)", border: "1px solid #1e2847", borderRadius: 10, padding: "16px 20px" }}>
+              <Label>VirusTotal</Label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12, marginTop: 8 }}>
+                <div><Label small>Malicious</Label><span style={{ color: "#ff6b6b", fontWeight: 700, fontSize: 14 }}>{result.sources.virustotal.malicious}</span></div>
+                <div><Label small>Suspicious</Label><span style={{ color: "#f5c400", fontWeight: 700, fontSize: 14 }}>{result.sources.virustotal.suspicious}</span></div>
+                <div><Label small>Harmless</Label><span style={{ color: "#00c896", fontWeight: 700, fontSize: 14 }}>{result.sources.virustotal.harmless}</span></div>
+                <div><Label small>Undetected</Label><span style={{ color: "#8892b0", fontWeight: 700, fontSize: 14 }}>{result.sources.virustotal.undetected}</span></div>
+                <div><Label small>Total Engines</Label><span style={{ color: "#ccd6f6", fontWeight: 700, fontSize: 14 }}>{result.sources.virustotal.total}</span></div>
+                {result.sources.virustotal.reputation !== undefined && (
+                  <div><Label small>Reputation</Label><span style={{ color: "#ccd6f6", fontSize: 13 }}>{result.sources.virustotal.reputation}</span></div>
+                )}
+                {result.sources.virustotal.country && (
+                  <div><Label small>Country</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.virustotal.country}</span></div>
+                )}
+                {result.sources.virustotal.as_owner && (
+                  <div><Label small>AS Owner</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.virustotal.as_owner}</span></div>
+                )}
+                {result.sources.virustotal.registrar && (
+                  <div><Label small>Registrar</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.virustotal.registrar}</span></div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* AbuseIPDB raw */}
+          {result.sources?.abuseipdb && !result.sources.abuseipdb.error && (
+            <div style={{ background: "rgba(13,17,30,0.6)", border: "1px solid #1e2847", borderRadius: 10, padding: "16px 20px" }}>
+              <Label>AbuseIPDB</Label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12, marginTop: 8 }}>
+                <div><Label small>Abuse Score</Label><span style={{ color: result.sources.abuseipdb.abuseScore > 50 ? "#ff6b6b" : result.sources.abuseipdb.abuseScore > 20 ? "#f5c400" : "#00c896", fontWeight: 700, fontSize: 14 }}>{result.sources.abuseipdb.abuseScore}%</span></div>
+                <div><Label small>Country</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.abuseipdb.country || "—"}</span></div>
+                <div><Label small>ISP</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.abuseipdb.isp || "—"}</span></div>
+                <div><Label small>Usage Type</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.abuseipdb.usageType || "—"}</span></div>
+                <div><Label small>Total Reports</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.abuseipdb.totalReports ?? 0}</span></div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SOCTriage() {
+  const [tab, setTab] = useState("triage");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -388,11 +593,34 @@ export default function SOCTriage() {
         <div style={{ marginBottom: 24, borderBottom: "1px solid #1a2040", paddingBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
             <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#4488ff", boxShadow: "0 0 12px #4488ff" }} />
-            <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#4488ff", letterSpacing: 3, textTransform: "uppercase" }}>SOC Triage AI // v0.1</span>
+            <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#4488ff", letterSpacing: 3, textTransform: "uppercase" }}>SOC Triage AI // v0.2</span>
           </div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, color: "#e6f1ff", letterSpacing: -0.5 }}>Security Alert Analyzer</h1>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, color: "#e6f1ff", letterSpacing: -0.5 }}>
+            {tab === "triage" ? "Security Alert Analyzer" : "Threat Intel Lookup"}
+          </h1>
+
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 4, marginTop: 16 }}>
+            {[
+              { id: "triage", label: "ALERT TRIAGE" },
+              { id: "intel", label: "THREAT INTEL" },
+            ].map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{
+                background: tab === t.id ? "rgba(68,136,255,0.15)" : "transparent",
+                border: `1px solid ${tab === t.id ? "#4488ff" : "#1e2847"}`,
+                color: tab === t.id ? "#7ab3ff" : "#4a5280",
+                padding: "6px 16px", borderRadius: 6, cursor: "pointer",
+                fontFamily: "'Space Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: 1.5,
+                transition: "all 0.15s",
+              }}>{t.label}</button>
+            ))}
+          </div>
         </div>
 
+        {tab === "intel" ? (
+          <ThreatIntel baseUrl={baseUrl} />
+        ) : (
+        <>
         {/* What to paste guide — only show before result */}
         {!result && (
           <div style={{ marginBottom: 20, background: "rgba(68,136,255,0.05)", border: "1px solid rgba(68,136,255,0.15)", borderRadius: 10, padding: "14px 18px" }}>
@@ -502,6 +730,8 @@ export default function SOCTriage() {
               ))}
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

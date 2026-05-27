@@ -186,5 +186,132 @@ app.post("/api/enrich", async (req, res) => {
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
+// Threat Intel — auto-detect input and query multiple sources
+function detectType(input) {
+  const s = input.trim();
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(s)) return "ip";
+  if (/^[a-fA-F0-9]{32}$/.test(s)) return "md5";
+  if (/^[a-fA-F0-9]{40}$/.test(s)) return "sha1";
+  if (/^[a-fA-F0-9]{64}$/.test(s)) return "sha256";
+  if (/^https?:\/\//.test(s)) return "url";
+  if (/^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+$/.test(s)) return "domain";
+  return "unknown";
+}
+
+async function vtLookup(type, value) {
+  let endpoint;
+  if (type === "ip") endpoint = `ip_addresses/${value}`;
+  else if (type === "domain") endpoint = `domains/${value}`;
+  else if (type === "url") endpoint = `urls/${Buffer.from(value).toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_")}`;
+  else if (["md5", "sha1", "sha256"].includes(type)) endpoint = `files/${value}`;
+  else return null;
+
+  try {
+    const res = await fetch(`https://www.virustotal.com/api/v3/${endpoint}`, {
+      headers: { "x-apikey": process.env.VIRUSTOTAL_API_KEY }
+    });
+    if (!res.ok) return { error: `VT returned ${res.status}` };
+    const data = await res.json();
+    const attr = data.data?.attributes || {};
+    const stats = attr.last_analysis_stats || {};
+    return {
+      malicious: stats.malicious || 0,
+      suspicious: stats.suspicious || 0,
+      harmless: stats.harmless || 0,
+      undetected: stats.undetected || 0,
+      total: (stats.malicious || 0) + (stats.suspicious || 0) + (stats.harmless || 0) + (stats.undetected || 0),
+      reputation: attr.reputation,
+      lastAnalysisDate: attr.last_analysis_date,
+      meaningful_name: attr.meaningful_name,
+      type_description: attr.type_description,
+      tags: attr.tags || [],
+      country: attr.country,
+      as_owner: attr.as_owner,
+      registrar: attr.registrar,
+      creation_date: attr.creation_date,
+    };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+app.post("/api/threat-intel", async (req, res) => {
+  const { indicator } = req.body;
+  if (!indicator || !indicator.trim()) {
+    return res.status(400).json({ error: "No indicator provided" });
+  }
+
+  const value = indicator.trim();
+  const type = detectType(value);
+  if (type === "unknown") {
+    return res.status(400).json({ error: "Could not detect indicator type. Provide IP, domain, URL, MD5, SHA1, or SHA256." });
+  }
+
+  try {
+    const sources = {};
+
+    // VirusTotal lookup (works for all types)
+    sources.virustotal = await vtLookup(type, value);
+
+    // AbuseIPDB only for IPs
+    if (type === "ip") {
+      sources.abuseipdb = await enrichIP(value);
+    }
+
+    // AI summary
+    const summaryPrompt = `You are a threat intel analyst. Summarize the following lookup data for indicator "${value}" (type: ${type}).
+
+Data: ${JSON.stringify(sources)}
+
+Return ONLY raw JSON with this structure:
+{
+  "verdict": "Malicious|Suspicious|Clean|Unknown",
+  "confidence": 0-100,
+  "risk_score": 0-100,
+  "summary": "2-3 sentence analyst-friendly summary",
+  "key_findings": ["finding 1", "finding 2", "finding 3"],
+  "recommended_action": "Block/Monitor/Allow with brief reasoning"
+}`;
+
+    const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.2,
+        max_tokens: 800,
+        messages: [{ role: "user", content: summaryPrompt }]
+      })
+    });
+
+    const aiData = await aiRes.json();
+    let aiSummary = null;
+    if (!aiData.error) {
+      const raw = aiData.choices?.[0]?.message?.content || "";
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          const cleaned = match[0].replace(/[\x00-\x1F\x7F]/g, " ").replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+          aiSummary = JSON.parse(cleaned);
+        } catch {}
+      }
+    }
+
+    res.json({
+      indicator: value,
+      type,
+      sources,
+      ai_summary: aiSummary,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("Threat intel error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`SOC Triage backend running on port ${PORT}`));
