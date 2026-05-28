@@ -875,56 +875,6 @@ function Footer() {
   );
 }
 
-function Footer() {
-  return (
-    <div style={{
-      marginTop: 60, paddingTop: 24, borderTop: "1px solid #1a2040",
-      paddingBottom: 30,
-    }}>
-      <div style={{
-        display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center",
-        justifyContent: "space-between", marginBottom: 16,
-      }}>
-        <div>
-          <div style={{ color: "#e6f1ff", fontSize: 13, fontWeight: 600 }}>
-            Built by Arvind S
-          </div>
-          <div style={{ color: "#8892b0", fontSize: 11, marginTop: 2 }}>
-            Senior Security Engineer · GIAC GEIR
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-          <a href="https://www.linkedin.com/in/aravind-s-733494205" target="_blank" rel="noopener noreferrer"
-            style={{ color: "#7ab3ff", textDecoration: "none", fontSize: 12, fontFamily: "'Space Mono', monospace" }}
-          >LinkedIn ↗</a>
-          <a href="https://github.com/ArvindS-DFIR" target="_blank" rel="noopener noreferrer"
-            style={{ color: "#7ab3ff", textDecoration: "none", fontSize: 12, fontFamily: "'Space Mono', monospace" }}
-          >GitHub ↗</a>
-          <a href="mailto:aravinds4992@gmail.com"
-            style={{ color: "#7ab3ff", textDecoration: "none", fontSize: 12, fontFamily: "'Space Mono', monospace" }}
-          >Email ↗</a>
-        </div>
-      </div>
-
-      <div style={{
-        background: "rgba(245,196,0,0.06)",
-        border: "1px solid rgba(245,196,0,0.2)",
-        borderRadius: 6, padding: "10px 14px", marginBottom: 14,
-        color: "#d4b540", fontSize: 11, lineHeight: 1.6,
-      }}>
-        ⚠ Demo tool — do not paste highly sensitive production data. Alerts are processed by Groq AI and not stored on our servers.
-      </div>
-
-      <div style={{
-        color: "#4a5280", fontSize: 10, fontFamily: "'Space Mono', monospace",
-        letterSpacing: 1, textAlign: "center",
-      }}>
-        © 2026 SOC Triage AI · Open source · v0.2
-      </div>
-    </div>
-  );
-}
-
 export default function SOCTriage() {
   const [tab, setTab] = useState("triage");
   const [input, setInput] = useState("");
