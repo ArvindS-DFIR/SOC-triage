@@ -102,6 +102,11 @@ function formatTicketComment(r) {
   }
 
   lines.push(`False Positive: ${r.false_positive_likelihood} - ${r.false_positive_reason}`);
+  if (r.missing_context?.length) {
+    lines.push("");
+    lines.push("Missing Context (would sharpen triage):");
+    r.missing_context.forEach(m => lines.push(`- ${m}`));
+  }
   if (r.escalate) {
     lines.push("");
     lines.push(`ESCALATION: ${r.escalation_reason}`);
@@ -310,6 +315,21 @@ function TriageCard({ result }) {
                 <li key={i} style={{ color: "#a8b2d8", fontSize: 13, lineHeight: 1.6 }}>{a}</li>
               ))}
             </ol>
+          </div>
+        )}
+
+        {result.missing_context?.length > 0 && (
+          <div style={{
+            background: "rgba(68,136,255,0.06)",
+            border: "1px solid rgba(68,136,255,0.2)",
+            borderRadius: 6, padding: "10px 14px",
+          }}>
+            <Label>Missing Context — provide for sharper triage</Label>
+            <ul style={{ margin: 0, padding: "0 0 0 16px", display: "flex", flexDirection: "column", gap: 4 }}>
+              {result.missing_context.map((m, i) => (
+                <li key={i} style={{ color: "#9bb8e8", fontSize: 12, lineHeight: 1.6 }}>{m}</li>
+              ))}
+            </ul>
           </div>
         )}
 
