@@ -976,7 +976,7 @@ export default function SOCTriage() {
         ::-webkit-scrollbar-thumb { background: #2d3555; border-radius: 2px; }
       `}</style>
 
-      <div style={{ maxWidth: result ? "100%" : 860, margin: "0 auto", padding: result ? "24px 20px" : "40px 20px", transition: "max-width 0.3s" }}>
+      <div style={{ maxWidth: result ? 1240 : 880, margin: "0 auto", padding: "32px 24px", transition: "max-width 0.3s ease" }}>
         {/* Header */}
         <div style={{ marginBottom: 24, borderBottom: "1px solid #1a2040", paddingBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
