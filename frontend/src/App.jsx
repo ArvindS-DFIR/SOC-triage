@@ -1021,16 +1021,13 @@ export default function SOCTriage() {
           </div>
         </div>
 
-        {tab === "intel" ? (
-          <>
-            <AboutSection />
-            <ThreatIntel baseUrl={baseUrl} />
-          </>
-        ) : (
-        <>
-        {/* About section */}
+        {/* About section - always visible */}
         <AboutSection />
 
+        {tab === "intel" ? (
+          <ThreatIntel baseUrl={baseUrl} />
+        ) : (
+        <>
         {/* What to paste guide — only show before result */}
         {!result && (
           <div style={{ marginBottom: 20, background: "rgba(68,136,255,0.05)", border: "1px solid rgba(68,136,255,0.15)", borderRadius: 10, padding: "14px 18px" }}>
