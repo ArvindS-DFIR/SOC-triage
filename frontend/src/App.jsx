@@ -765,22 +765,36 @@ function ThreatIntel({ baseUrl }) {
 }
 
 function AboutSection() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => {
+    // Open by default for first-time visitors, remember choice afterwards
+    const saved = localStorage.getItem("soc_about_open");
+    return saved === null ? true : saved === "true";
+  });
+
+  const toggle = () => {
+    const newState = !open;
+    setOpen(newState);
+    localStorage.setItem("soc_about_open", String(newState));
+  };
+
   return (
     <div style={{ marginBottom: 24 }}>
-      <button onClick={() => setOpen(!open)} style={{
-        background: "rgba(13,17,30,0.6)", border: "1px solid #1e2847",
-        borderRadius: 8, padding: "10px 16px", cursor: "pointer",
+      <button onClick={toggle} style={{
+        background: open ? "rgba(68,136,255,0.12)" : "rgba(13,17,30,0.6)",
+        border: `1px solid ${open ? "#4488ff" : "#1e2847"}`,
+        borderRadius: open ? "8px 8px 0 0" : 8,
+        padding: "12px 18px", cursor: "pointer",
         display: "flex", justifyContent: "space-between", alignItems: "center",
-        width: "100%", color: "#7ab3ff", fontSize: 12,
+        width: "100%", color: open ? "#7ab3ff" : "#7ab3ff", fontSize: 13,
         fontFamily: "'Space Mono', monospace", letterSpacing: 1, fontWeight: 700,
+        transition: "all 0.15s",
       }}>
-        <span>ⓘ ABOUT THIS TOOL</span>
-        <span style={{ fontSize: 14 }}>{open ? "−" : "+"}</span>
+        <span>ⓘ ABOUT THIS TOOL — WHAT IT DOES & WHO IT'S FOR</span>
+        <span style={{ fontSize: 16 }}>{open ? "−" : "+"}</span>
       </button>
       {open && (
         <div style={{
-          background: "rgba(13,17,30,0.4)", border: "1px solid #1e2847",
+          background: "rgba(13,17,30,0.4)", border: "1px solid #4488ff",
           borderTop: "none", borderRadius: "0 0 8px 8px",
           padding: "16px 20px", animation: "fadeUp 0.2s ease",
           color: "#a8b2d8", fontSize: 13, lineHeight: 1.7,
