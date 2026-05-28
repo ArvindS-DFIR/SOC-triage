@@ -1028,7 +1028,9 @@ export default function SOCTriage() {
           </>
         ) : (
         <>
+        {/* About section */}
         <AboutSection />
+
         {/* What to paste guide — only show before result */}
         {!result && (
           <div style={{ marginBottom: 20, background: "rgba(68,136,255,0.05)", border: "1px solid rgba(68,136,255,0.15)", borderRadius: 10, padding: "14px 18px" }}>
