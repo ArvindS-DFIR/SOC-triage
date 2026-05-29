@@ -766,9 +766,8 @@ function ThreatIntel({ baseUrl }) {
 
 function AboutSection() {
   const [open, setOpen] = useState(() => {
-    // Open by default for first-time visitors, remember choice afterwards
     const saved = localStorage.getItem("soc_about_open");
-    return saved === null ? true : saved === "true";
+    return saved === "true" ? true : false; // closed by default
   });
 
   const toggle = () => {
