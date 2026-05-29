@@ -28,11 +28,23 @@ Use this exact structure:
 }
 
 GUIDANCE ON missing_context:
-- This field lists the most valuable pieces of information NOT present in the alert that would materially sharpen the triage verdict. Return an empty array [] if the alert is already complete.
-- For EDR/endpoint alerts (CrowdStrike, Defender, SentinelOne, etc.), process lineage is critical. If the alert does not include the parent process, grandparent process, or full process tree, list that as missing context — e.g. "Parent/grandparent process lineage (was this spawned by a browser, Office app, or legitimate service?)".
-- Other high-value missing items to check for: full command-line arguments, user/account context and privilege level, signing status of the binary, network destination details, file hash, originating email (for phishing), and whether the action was prevented or merely detected.
+- This field lists the most valuable pieces of information NOT present in the alert that would materially sharpen the triage verdict. Return an empty array [] only if the alert is genuinely complete (rare for EDR alerts).
+- For EDR/endpoint alerts (CrowdStrike, Defender, SentinelOne, etc.), process lineage is critical. If the alert does not include the parent process, grandparent process, or full process tree, ALWAYS list that as missing context — e.g. "Parent/grandparent process lineage (was this spawned by a browser, Office app, or legitimate installer?)".
+- High-value missing items to check for and flag if absent:
+  * Parent and grandparent process names + paths
+  * Full command-line of parent process
+  * User/account context and privilege level (standard user vs admin vs SYSTEM)
+  * Binary signing status and signer name
+  * Network outcome — was the connection successful, what IPs did the domain resolve to, was data transferred
+  * File creation events — did the suspicious process drop or modify files
+  * Persistence indicators — registry run keys, scheduled tasks, services, startup folder entries created around the same time
+  * Sibling/concurrent process activity on the host within the same time window
+  * Whether the detection was prevented, blocked, or only logged (PatternDispositionDescription, NetworkContainmentState, etc.)
+  * Originating email or web source (for phishing-adjacent alerts)
+  * File hash if a payload was involved
 - Keep each missing_context item short and specific — name the artifact and briefly why it matters.
-- When key context like process lineage is missing, reflect this in your confidence score (lower it) rather than assuming the worst or best case.
+- When key context like process lineage is missing, reflect this in your confidence score (lower it noticeably — typically by 20-30 points) rather than assuming the worst or best case.
+- For "living off the land" / LOLBin alerts (regsvr32, rundll32, mshta, wscript, certutil, bitsadmin, etc.), parent process context is essential — these binaries are legitimate, so the malicious signal is entirely in WHO spawned them and WHY. Always flag missing parent context for these.
 
 Be concise, technical, and accurate. Base your analysis strictly on the input. Do not fabricate process names, hashes, or IPs that are not in the alert.`;
 
