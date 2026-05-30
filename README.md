@@ -9,7 +9,7 @@ AI-powered security alert triage tool. Paste any alert — EDR, SIEM, cloud, log
 ### Step 1 — Install Node.js
 Download from https://nodejs.org and install. Choose the LTS version.
 
-### Step 2 — Get your Anthropic API key OR any other LLM API Key
+### Step 2 — Get your Anthropic API key
 1. Go to https://console.anthropic.com
 2. Sign up / log in
 3. Click "API Keys" → "Create Key"
@@ -86,3 +86,12 @@ soc-triage/
 - Vercel hosting: **Free**
 - Render backend: **Free tier**
 - Anthropic API: ~$0.003 per analysis (less than half a cent)
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+Free to use, modify, and distribute. Commercial use permitted.
+Built and maintained by [Arvind S](https://www.linkedin.com/in/aravind-s-733494205).
