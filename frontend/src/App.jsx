@@ -1,5 +1,53 @@
 import { useState, useRef, useEffect } from "react";
 
+const MAX_FILE_SIZE = 100 * 1024; // 100KB
+const WARN_CHAR_LIMIT = 6000;
+
+// File text extraction — handles txt, log, csv, json, xml, pdf
+async function extractFileText(file) {
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`File too large (${(file.size / 1024).toFixed(0)}KB). Max 100KB. Paste the relevant section manually.`);
+  }
+  const name = file.name.toLowerCase();
+  const textTypes = [".txt", ".log", ".csv", ".json", ".xml", ".yaml", ".yml", ".md", ".conf", ".config", ".evtx"];
+  const isText = textTypes.some(ext => name.endsWith(ext)) || file.type.startsWith("text/");
+
+  if (isText) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsText(file);
+    });
+  }
+
+  if (name.endsWith(".pdf")) {
+    // Load pdf.js from CDN
+    if (!window.pdfjsLib) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let text = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(item => item.str).join(" ") + "\n";
+    }
+    return text.trim();
+  }
+
+  throw new Error(`Unsupported file type: ${file.name}`);
+}
+
 const SEVERITY_COLORS = {
   CRITICAL: { bg: "#ff2d2d", text: "#fff", glow: "0 0 20px rgba(255,45,45,0.6)" },
   HIGH: { bg: "#ff6b00", text: "#fff", glow: "0 0 20px rgba(255,107,0,0.5)" },
@@ -22,6 +70,62 @@ const QUICK_PROMPTS = [
   "What is the containment priority?",
   "Is this a known threat actor TTP?",
 ];
+
+const ACCEPTED_FILES = ".txt,.log,.csv,.json,.xml,.yaml,.yml,.md,.conf,.config,.pdf";
+
+function FileUploadButton({ onText, size = "normal" }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const ref = useRef(null);
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const text = await extractFileText(file);
+      if (!text.trim()) throw new Error("File appears to be empty");
+      if (text.length > WARN_CHAR_LIMIT) {
+        setError(`Large file (${text.length} chars) — AI works best under 6,000. Consider trimming to relevant lines.`);
+        setTimeout(() => setError(null), 5000);
+      }
+      onText(text, file.name);
+    } catch (err) {
+      setError(err.message);
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+      e.target.value = "";
+    }
+  };
+
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <input ref={ref} type="file" accept={ACCEPTED_FILES} onChange={handleFile} style={{ display: "none" }} />
+      <button
+        onClick={() => ref.current?.click()}
+        disabled={loading}
+        title="Upload file (.txt, .log, .csv, .json, .xml, .pdf)"
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid #1e2847",
+          borderRadius: 4, cursor: loading ? "wait" : "pointer",
+          color: "#4a5280", padding: size === "small" ? "4px 8px" : "6px 10px",
+          fontSize: size === "small" ? 11 : 12,
+          fontFamily: "'Space Mono', monospace",
+          display: "flex", alignItems: "center", gap: 5,
+          transition: "all 0.15s",
+        }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = "#4488ff"; e.currentTarget.style.color = "#7ab3ff"; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = "#1e2847"; e.currentTarget.style.color = "#4a5280"; }}
+      >
+        {loading ? "⏳" : "📎"} {size !== "small" && (loading ? "Reading..." : "Attach file")}
+      </button>
+      {error && <span style={{ color: "#ff6b6b", fontSize: 10, fontFamily: "'Space Mono', monospace" }}>{error}</span>}
+    </div>
+  );
+}
 
 function TypingIndicator() {
   return (
@@ -530,8 +634,12 @@ function ChatPanel({ alertText, triageResult, baseUrl }) {
       {/* Input */}
       <div style={{
         padding: "10px 12px", borderTop: "1px solid #1e2847",
-        display: "flex", gap: 8, background: "#0a0e1c",
+        display: "flex", gap: 8, background: "#0a0e1c", alignItems: "center",
       }}>
+        <FileUploadButton
+          size="small"
+          onText={(text, name) => sendMessage(`I'm attaching a file (${name}):\n\n${text.slice(0, 3000)}${text.length > 3000 ? "\n...[truncated]" : ""}`)}
+        />
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -1044,15 +1152,16 @@ export default function SOCTriage() {
         {/* What to paste guide — only show before result */}
         {!result && (
           <div style={{ marginBottom: 20, background: "rgba(68,136,255,0.05)", border: "1px solid rgba(68,136,255,0.15)", borderRadius: 10, padding: "14px 18px" }}>
-            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#4488ff", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>What can you paste here?</div>
+            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#4488ff", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>What can you paste or upload here?</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
               {[
-                { icon: "🛡️", label: "EDR Alerts", desc: "CrowdStrike, Defender, SentinelOne" },
-                { icon: "📊", label: "SIEM Results", desc: "Splunk, Sentinel incidents" },
-                { icon: "☁️", label: "Cloud Alerts", desc: "AWS GuardDuty, Azure Defender" },
-                { icon: "🔥", label: "Firewall Logs", desc: "Zscaler, Palo Alto, FortiGate" },
-                { icon: "📧", label: "Phishing Reports", desc: "Email headers, URLs" },
-                { icon: "📝", label: "Raw Logs", desc: "Windows events, syslog" },
+                { icon: "🛡️", label: "EDR Alerts", desc: "CrowdStrike, Defender, SentinelOne — paste raw alert or upload .log/.txt" },
+                { icon: "📊", label: "SIEM Results", desc: "Splunk search output, Sentinel incidents — paste or upload .csv/.json" },
+                { icon: "☁️", label: "Cloud Alerts", desc: "AWS GuardDuty, Azure Defender — paste or upload exported JSON" },
+                { icon: "🔥", label: "Firewall Logs", desc: "Zscaler, Palo Alto, FortiGate — paste log lines or upload .log/.txt" },
+                { icon: "📧", label: "Phishing Reports", desc: "Email headers, URLs — paste raw headers or upload .txt" },
+                { icon: "📝", label: "Raw Logs", desc: "Windows events, syslog — paste or upload .log/.txt/.xml" },
+                { icon: "📎", label: "File Upload", desc: "Click 'Attach file' in the input box — .txt .log .csv .json .xml .pdf (max 100KB)" },
               ].map((item, i) => (
                 <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 6, padding: "8px 10px" }}>
                   <span style={{ fontSize: 14 }}>{item.icon}</span>
@@ -1064,7 +1173,7 @@ export default function SOCTriage() {
               ))}
             </div>
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(68,136,255,0.1)", color: "#8892b0", fontSize: 12 }}>
-              💡 <span style={{ color: "#ccd6f6" }}>No special format needed.</span> Paste whatever you have or describe the incident in plain English.
+              💡 <span style={{ color: "#ccd6f6" }}>No special format needed.</span> Paste whatever you have, describe the incident in plain English, or use the <span style={{ color: "#7ab3ff" }}>📎 Attach file</span> button to upload a log file directly (max 100KB).
             </div>
           </div>
         )}
@@ -1072,7 +1181,10 @@ export default function SOCTriage() {
         {/* Input area */}
         <div style={{ background: "rgba(13,17,30,0.8)", border: "1px solid #1e2847", borderRadius: 10, overflow: "hidden", marginBottom: 12, boxShadow: "0 4px 40px rgba(0,0,0,0.4)" }}>
           <div style={{ padding: "8px 14px", background: "#0a0e1c", borderBottom: "1px solid #1e2847", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#4a5280", letterSpacing: 1 }}>ALERT INPUT</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#4a5280", letterSpacing: 1 }}>ALERT INPUT</span>
+              <FileUploadButton onText={(text, name) => { setInput(prev => prev ? prev + "\n\n--- Attached: " + name + " ---\n" + text : "--- Attached: " + name + " ---\n" + text); }} />
+            </div>
             <button onClick={() => { setInput(""); setResult(null); setError(null); }} style={{ background: "none", border: "none", color: "#4a5280", cursor: "pointer", fontSize: 11, fontFamily: "'Space Mono', monospace" }}>clear</button>
           </div>
           <textarea
