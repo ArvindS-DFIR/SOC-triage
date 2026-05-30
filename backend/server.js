@@ -360,12 +360,6 @@ async function otxLookup(type, value) {
     return { error: e.message };
   }
 }
-      creation_date: attr.creation_date,
-    };
-  } catch (e) {
-    return { error: e.message };
-  }
-}
 
 app.post("/api/threat-intel", async (req, res) => {
   const { indicator } = req.body;
