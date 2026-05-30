@@ -719,27 +719,36 @@ function ThreatIntel({ baseUrl }) {
             </div>
           )}
 
-          {/* VirusTotal raw */}
-          {result.sources?.virustotal && !result.sources.virustotal.error && (
+          {/* OTX raw */}
+          {result.sources?.otx && !result.sources.otx.error && (
             <div style={{ background: "rgba(13,17,30,0.6)", border: "1px solid #1e2847", borderRadius: 10, padding: "16px 20px" }}>
-              <Label>VirusTotal</Label>
+              <Label>AlienVault OTX</Label>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12, marginTop: 8 }}>
-                <div><Label small>Malicious</Label><span style={{ color: "#ff6b6b", fontWeight: 700, fontSize: 14 }}>{result.sources.virustotal.malicious}</span></div>
-                <div><Label small>Suspicious</Label><span style={{ color: "#f5c400", fontWeight: 700, fontSize: 14 }}>{result.sources.virustotal.suspicious}</span></div>
-                <div><Label small>Harmless</Label><span style={{ color: "#00c896", fontWeight: 700, fontSize: 14 }}>{result.sources.virustotal.harmless}</span></div>
-                <div><Label small>Undetected</Label><span style={{ color: "#8892b0", fontWeight: 700, fontSize: 14 }}>{result.sources.virustotal.undetected}</span></div>
-                <div><Label small>Total Engines</Label><span style={{ color: "#ccd6f6", fontWeight: 700, fontSize: 14 }}>{result.sources.virustotal.total}</span></div>
-                {result.sources.virustotal.reputation !== undefined && (
-                  <div><Label small>Reputation</Label><span style={{ color: "#ccd6f6", fontSize: 13 }}>{result.sources.virustotal.reputation}</span></div>
+                <div><Label small>Pulse Count</Label><span style={{ color: result.sources.otx.pulse_count > 0 ? "#ff6b6b" : "#00c896", fontWeight: 700, fontSize: 14 }}>{result.sources.otx.pulse_count}</span></div>
+                <div><Label small>Malicious</Label><span style={{ color: result.sources.otx.malicious ? "#ff6b6b" : "#00c896", fontWeight: 700, fontSize: 13 }}>{result.sources.otx.malicious ? "⚠ YES" : "✓ NO"}</span></div>
+                {result.sources.otx.country && <div><Label small>Country</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.otx.country}</span></div>}
+                {result.sources.otx.asn && <div><Label small>ASN</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.otx.asn}</span></div>}
+                {result.sources.otx.first_seen && <div><Label small>First Seen</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{new Date(result.sources.otx.first_seen).toLocaleDateString()}</span></div>}
+                {result.sources.otx.last_seen && <div><Label small>Last Seen</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{new Date(result.sources.otx.last_seen).toLocaleDateString()}</span></div>}
+                {result.sources.otx.related_malware?.length > 0 && (
+                  <div style={{ gridColumn: "1/-1" }}>
+                    <Label small>Related Malware</Label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                      {result.sources.otx.related_malware.map((m, i) => (
+                        <span key={i} style={{ background: "#1a1f35", border: "1px solid #2d3555", color: "#ff9999", padding: "2px 8px", borderRadius: 4, fontFamily: "'Space Mono', monospace", fontSize: 10 }}>{m}</span>
+                      ))}
+                    </div>
+                  </div>
                 )}
-                {result.sources.virustotal.country && (
-                  <div><Label small>Country</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.virustotal.country}</span></div>
-                )}
-                {result.sources.virustotal.as_owner && (
-                  <div><Label small>AS Owner</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.virustotal.as_owner}</span></div>
-                )}
-                {result.sources.virustotal.registrar && (
-                  <div><Label small>Registrar</Label><span style={{ color: "#a8b2d8", fontSize: 12 }}>{result.sources.virustotal.registrar}</span></div>
+                {result.sources.otx.tags?.length > 0 && (
+                  <div style={{ gridColumn: "1/-1" }}>
+                    <Label small>Tags</Label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                      {result.sources.otx.tags.slice(0, 8).map((t, i) => (
+                        <span key={i} style={{ background: "rgba(68,136,255,0.12)", border: "1px solid rgba(68,136,255,0.3)", color: "#7ab3ff", padding: "2px 8px", borderRadius: 4, fontFamily: "'Space Mono', monospace", fontSize: 10 }}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -848,7 +857,28 @@ function AboutSection() {
             fontSize: 10, letterSpacing: 1.5, marginBottom: 8, fontWeight: 700,
           }}>STACK</div>
           <div style={{ color: "#8892b0", fontSize: 11, fontFamily: "'Space Mono', monospace", lineHeight: 1.7 }}>
-            React · Node.js · Groq (Llama 3.3 70B) · VirusTotal · AbuseIPDB · NVD · MITRE ATT&CK
+            React · Node.js · Groq (Llama 3.3 70B) · AlienVault OTX · AbuseIPDB · NVD · MITRE ATT&CK
+          </div>
+
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{
+              color: "#f5c400", fontFamily: "'Space Mono', monospace",
+              fontSize: 10, letterSpacing: 1.5, marginBottom: 10, fontWeight: 700,
+            }}>⚠ KNOWN LIMITATIONS</div>
+            <ul style={{ margin: 0, padding: "0 0 0 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+              {[
+                "AI model is Llama 3.3 via Groq (free tier) — less accurate than GPT-4 or Claude on complex or ambiguous alerts",
+                "MITRE mapping may miss sub-techniques on incomplete alerts",
+                "IOC enrichment in triage covers IPs only — domains and hashes require manual Threat Intel lookup",
+                "No memory between sessions — each triage starts fresh with no prior context",
+                "Threat Intel uses AlienVault OTX + AbuseIPDB — not a replacement for full TIP platforms (Recorded Future, MISP, etc.)",
+                "Hallucination check catches most but not all AI errors — always verify critical findings manually",
+                "Not suitable for classified, highly sensitive, or air-gapped environments",
+                "Alert data is sent to Groq AI servers for processing — do not paste data covered by strict data residency requirements",
+              ].map((l, i) => (
+                <li key={i} style={{ color: "#8892b0", fontSize: 11, lineHeight: 1.6 }}>{l}</li>
+              ))}
+            </ul>
           </div>
         </div>
       )}

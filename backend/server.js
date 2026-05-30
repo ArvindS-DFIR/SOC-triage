@@ -328,36 +328,38 @@ function detectType(input) {
   return "unknown";
 }
 
-async function vtLookup(type, value) {
-  let endpoint;
-  if (type === "ip") endpoint = `ip_addresses/${value}`;
-  else if (type === "domain") endpoint = `domains/${value}`;
-  else if (type === "url") endpoint = `urls/${Buffer.from(value).toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_")}`;
-  else if (["md5", "sha1", "sha256"].includes(type)) endpoint = `files/${value}`;
-  else return null;
-
+async function otxLookup(type, value) {
   try {
-    const res = await fetch(`https://www.virustotal.com/api/v3/${endpoint}`, {
-      headers: { "x-apikey": process.env.VIRUSTOTAL_API_KEY }
-    });
-    if (!res.ok) return { error: `VT returned ${res.status}` };
+    let section;
+    if (type === "ip") section = `IPv4/${value}`;
+    else if (type === "domain") section = `domain/${value}`;
+    else if (type === "url") section = `url/${encodeURIComponent(value)}`;
+    else if (["md5", "sha1", "sha256"].includes(type)) section = `file/${value}`;
+    else return null;
+
+    const res = await fetch(
+      `https://otx.alienvault.com/api/v1/indicators/${section}/general`,
+      { headers: { "X-OTX-API-KEY": process.env.OTX_API_KEY } }
+    );
+    if (!res.ok) return { error: `OTX returned ${res.status}` };
     const data = await res.json();
-    const attr = data.data?.attributes || {};
-    const stats = attr.last_analysis_stats || {};
+
     return {
-      malicious: stats.malicious || 0,
-      suspicious: stats.suspicious || 0,
-      harmless: stats.harmless || 0,
-      undetected: stats.undetected || 0,
-      total: (stats.malicious || 0) + (stats.suspicious || 0) + (stats.harmless || 0) + (stats.undetected || 0),
-      reputation: attr.reputation,
-      lastAnalysisDate: attr.last_analysis_date,
-      meaningful_name: attr.meaningful_name,
-      type_description: attr.type_description,
-      tags: attr.tags || [],
-      country: attr.country,
-      as_owner: attr.as_owner,
-      registrar: attr.registrar,
+      pulse_count: data.pulse_info?.count || 0,
+      malicious: (data.pulse_info?.count || 0) > 0,
+      tags: data.pulse_info?.tags || [],
+      country: data.country_name || data.country_code,
+      asn: data.asn,
+      reputation: data.reputation,
+      type_title: data.type_title,
+      first_seen: data.first_seen,
+      last_seen: data.last_seen,
+      related_malware: data.pulse_info?.related?.malware?.slice(0, 5) || [],
+    };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
       creation_date: attr.creation_date,
     };
   } catch (e) {
@@ -380,8 +382,8 @@ app.post("/api/threat-intel", async (req, res) => {
   try {
     const sources = {};
 
-    // VirusTotal lookup (works for all types)
-    sources.virustotal = await vtLookup(type, value);
+    // AlienVault OTX lookup (works for all types)
+    sources.otx = await otxLookup(type, value);
 
     // AbuseIPDB only for IPs
     if (type === "ip") {
